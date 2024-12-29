@@ -75,41 +75,58 @@ def scrape_brookings():
     # Visit each article link and collect details
     for item in article_data:
         driver.get(item["link"])
-        time.sleep(1)  # Adjust based on the page load time
+        time.sleep(2)  # Adjust based on the page load time
         
     # Check if the current URL contains '/events/' (event articles are not proper for scraping)
         current_url = driver.current_url
-        if not '/articles/' in current_url:
+        if '/articles/' not in current_url:
             print(f"Skipped non-article link: {current_url}")
+            article_data.remove(item)  # Remove skipped links from the list
             continue  # Skip to the next article
 
         try:
             # Extract Content
-            content = driver.find_element(By.CSS_SELECTOR, "div.byo-block.-narrow.wysiwyg-block.wysiwyg").text
+            content = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div.byo-block.-narrow.wysiwyg-block.wysiwyg"))
+            ).text
             item["content"] = content
             
             # Publish Date
-            publication_date = driver.find_element(By.CSS_SELECTOR, "p.text-medium").text
+            publication_date = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "p.text-medium"))
+            ).text
             item["publication_date"] = publication_date
-
+            
             # Extract Author/Authors
             author_elements = driver.find_elements(By.CSS_SELECTOR, "a.h5.person-hover")
             authors = [author.text for author in author_elements]  # Get the text of each author
             item["authors"] = ", ".join(authors)  # Join multiple authors with commas
+
+            main_type = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,"p.label-large"))
+            ).text
             
-            type_article = driver.find_element(By.XPATH, '//*[@id="hero"]/div[1]/div[2]/div/div[1]/div/div[1]/p').text
+            # Extract additional tags (e.g., Podcast, Testimony)
+            additional_tags_elements = driver.find_elements(By.CSS_SELECTOR, ".tm-tag")
+            additional_tags = [tag.text for tag in additional_tags_elements]
+
+            # Combine the main type with additional tags
+            type_article = main_type
+            if additional_tags:
+                type_article += " + " + " + ".join(additional_tags)
+
             item["type"] = type_article
             item["resource"] = 'BROOKINGS'
             item["resource_location"] = "Washington, D.C"
 
         except Exception as e:
+            print(f"Failed to extract details for {current_url}: {e}")
             item["content"] = None
             item["publication_date"] = None
             item["authors"] = None
             item["link"] = item.get("link", None)
             item["type"] = None
 
-    print("Collected article details:")
     
     # Save to CSV
     save_to_csv(article_data)
@@ -119,9 +136,10 @@ def scrape_brookings():
 def save_to_csv(data):
     # Define CSV file name
     csv_file = "brookings_articles.csv"
-
+    for i, item in enumerate(data, start=1):
+        item["id"] = i
     # Specify the header
-    fieldnames = ["title", "link", "content", "authors", "publication_date", "resource", "resource_location", "type"]
+    fieldnames = ["id", "title", "link", "authors", "publication_date", "resource", "resource_location", "type", "content",]
 
     # Write data to CSV
     with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
@@ -133,3 +151,4 @@ def save_to_csv(data):
 
 # Run the scraper
 scrape_brookings()
+
