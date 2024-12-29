@@ -6,10 +6,12 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import csv
 
-
+'''
+this site will opens by germany vpn
+'''
 def setup_driver():
     options = Options()
-    options.add_argument("--headless")
+    # options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     return webdriver.Chrome(options=options)
@@ -86,13 +88,13 @@ def scrape_brookings():
 
         try:
             # Extract Content
-            content = WebDriverWait(driver, 5).until(
+            content = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "div.byo-block.-narrow.wysiwyg-block.wysiwyg"))
             ).text
             item["content"] = content
             
             # Publish Date
-            publication_date = WebDriverWait(driver, 5).until(
+            publication_date = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "p.text-medium"))
             ).text
             item["publication_date"] = publication_date
@@ -102,7 +104,7 @@ def scrape_brookings():
             authors = [author.text for author in author_elements]  # Get the text of each author
             item["authors"] = ", ".join(authors)  # Join multiple authors with commas
 
-            main_type = WebDriverWait(driver, 5).until(
+            main_type = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR,"p.label-large"))
             ).text
             
@@ -149,6 +151,6 @@ def save_to_csv(data):
 
     print(f"Data successfully saved to {csv_file}")
 
+
 # Run the scraper
 scrape_brookings()
-
