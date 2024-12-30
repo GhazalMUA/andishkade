@@ -6,7 +6,9 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import csv
 import re 
-
+'''
+ bedone vpn
+'''
 def setup_driver():
     options = Options()
     # options.add_argument("--headless")
@@ -14,20 +16,21 @@ def setup_driver():
     options.add_argument("--no-sandbox")
     return webdriver.Chrome(options=options)
 
-def scrape_articles():
+def scrape_piie():
     base_url = "https://www.piie.com"  # Replace with the actual base URL of the website
-    start_url = "https://www.piie.com/search?search_api_fulltext=iraq&f%5B0%5D=date%3A2024"  # Replace with the actual search URL
+    start_url = "https://www.piie.com/search?search_api_fulltext=iraq&f%5B0%5D=date%3A2022"  # Replace with the actual search URL
+
 
     print("Starting scraping from piie.com ...")
     driver = setup_driver()
     driver.get(start_url)
-    time.sleep(2)
+    time.sleep(11) 
 
     # Locate the list of articles
     
     print('i scrolled.')
     article_list = driver.find_elements(By.CSS_SELECTOR, "div.content-list-results__list div.view__row")
-    driver.execute_script("arguments[0].scrollIntoView(true);", article_list)
+    # driver.execute_script("arguments[0].scrollIntoView(true);", article_list)
     print('I found article list')
     article_data = []
 
@@ -47,27 +50,28 @@ def scrape_articles():
     # Visit each article link and collect details
     for item in article_data:
         driver.get(item["link"])
-        time.sleep(2)
+        time.sleep(11)
         print(item["link"])
 
         try:
             
             # Extract content
             
-            content = WebDriverWait(driver, 10).until(
+            content = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="main"]/div[1]/article/div[2]/div/div/div/div'))
             ).text
             item["content"] = content
 
             # Extract publication date
-            publication_date = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="main"]/div[1]/article/div[1]/div[2]/div/div[4]/div/div/time'))
-            ).get_attribute("datetime")
+            time_element = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'field__item')]/time"))
+            )
+            publication_date = time_element.get_attribute("datetime")  
             item["publication_date"] = publication_date
 
             # Extract authors
-            author_elements = WebDriverWait(driver, 10).until(
-                EC.presence_of_all_elements_located((By.XPATH, '//*[@id="main"]/div[1]/article/div[1]/div[2]/div/div[3]/div/span[2]'))
+            author_elements = WebDriverWait(driver, 20).until(
+                EC.presence_of_all_elements_located((By.XPATH, "//span[contains(@class, 'author-list__author')]//a"))
             )
             authors = [author.text for author in author_elements]
             item["authors"] = ", ".join(authors)
@@ -83,6 +87,8 @@ def scrape_articles():
             
         except Exception as e:
             print(f"Failed to extract details for {item['link']}: {e}")
+            with open("failed_page.html", "w", encoding="utf-8") as file:
+                file.write(driver.page_source)
             item["content"] = None
             item["publication_date"] = None
             item["authors"] = None
@@ -105,4 +111,4 @@ def save_to_csv(data):
     print(f"Data successfully saved to {csv_file}")
 
 # Run the scraper
-scrape_articles()
+scrape_piie()
