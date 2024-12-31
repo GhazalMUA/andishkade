@@ -50,35 +50,36 @@ def scrape_piie():
     # Visit each article link and collect details
     for item in article_data:
         driver.get(item["link"])
-        time.sleep(11)
+        time.sleep(12)
         print(item["link"])
 
         try:
             
             # Extract content
-            
-            content = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="main"]/div[1]/article/div[2]/div/div/div/div'))
+            content_element = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".field.field--name-body.field--type-text-with-summary.field--label-visually_hidden"))
             ).text
+            content = content_element.strip()
             item["content"] = content
 
             # Extract publication date
             time_element = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'field__item')]/time"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".hero-banner-publication__date .field__item time"))
             )
             publication_date = time_element.get_attribute("datetime")  
             item["publication_date"] = publication_date
 
-            # Extract authors
-            author_elements = WebDriverWait(driver, 20).until(
-                EC.presence_of_all_elements_located((By.XPATH, "//span[contains(@class, 'author-list__author')]//a"))
-            )
-            authors = [author.text for author in author_elements]
-            item["authors"] = ", ".join(authors)
+    
+            #Extract author
+            author_elements = driver.find_elements(By.CSS_SELECTOR, ".author-list .author-list__author")
+            authors = [author.text.strip() for author in author_elements]
+            item["authors"] = ", ".join(authors) if authors else "Unknown"
+            
 
             # Extract type of the article using regex
             type_match = re.search(r"https://www\.piie\.com/([^/]+)", item["link"])
             item["type"] = type_match.group(1) if type_match else "Unknown"
+
 
             # Add additional metadata
             item["resource"] = "PIIE"
