@@ -1,3 +1,4 @@
+import csv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -5,10 +6,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
 import time
-
+import re
 def setup_driver():
     options = Options()
-    options.add_argument("--headless")
+    # options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     return webdriver.Chrome(options=options)
@@ -29,9 +30,7 @@ def scrape_csis():
         driver.get(current_url)
 
         try:
-
             # Wait for articles to load
-            
             WebDriverWait(driver, 20).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, "article.article-search-listing"))
             )
@@ -51,19 +50,19 @@ def scrape_csis():
                     # Extract the date
                     date_element = article.find_element(By.CSS_SELECTOR, ".contributors span.inline-block")
                     date_text = date_element.text.strip("— ").strip()
-
                     # Parse the date
                     article_date = datetime.strptime(date_text, "%B %d, %Y")
+                    title = link_element.text
 
                     # Check if the date is in the current year
                     if article_date.year == current_year:
-                        links.append(link)
+                        links.append({"link": link, "publication_date": date_text, "title": "title"})
                     else:
                         # Stop scraping if the date condition is not met
                         print(f"Article date {article_date} does not meet the condition. Stopping.")
                         driver.quit()
                         print("Scraping complete.")
-                        return list(links)
+                        return links
                 except ValueError as ve:
                     print(f"Date parsing error for: {date_text}. Error: {ve}")
                     continue
@@ -76,16 +75,82 @@ def scrape_csis():
 
         # Go to the next page
         page_number += 1
-        time.sleep(5)  # Allow time for the next page to load
+        time.sleep(1)  # Allow time for the next page to load
 
     driver.quit()
     print("Scraping complete.")
-    return list(links)
+    return links
 
-# Run the script
+def extract_article_data(driver, link_data):
+    link = link_data["link"]
+    publication_date = link_data["publication_date"]
+    title = link_data["title"]
+    driver.get(link)
+    data = {
+        "id": None,  # Will be added later when saving to CSV
+        "title": title ,
+        "link": link,
+        "authors": None,
+        "publication_date": publication_date,
+        "resource": "CSIS",
+        "resource_location": "Washington D.C.",
+        "type": None,
+        "content": None,
+    }
+
+    try:
+
+        # Extract authors
+        try:
+            author_element = driver.find_element(By.CSS_SELECTOR,".contributors .contributor-list")
+            data["authors"] = author_element.text.strip()
+        except Exception:
+            data["authors"] = "Unknown"
+
+        # Extract type
+        try:
+            type_match = re.search(r"https://www\.csis\.org/([^/]+)", data["link"])
+            data["type"] = type_match.group(1) if type_match else "Unknown"
+        except Exception:
+            data["type"] = "Unknown"
+
+        # Extract content
+        try:
+            content_elements = driver.find_elements(By.CSS_SELECTOR, ".wysiwyg-wrapper.text-high-contrast")
+            content = " ".join([element.text for element in content_elements])
+            data["content"] = content if content.strip() else "Content not available"
+        except Exception as e:
+            data["content"] = "Content extraction error"
+    except Exception as e:
+        print(f"Error extracting data from {link}: {e}")
+
+    return data
+
+def save_to_csv(data, filename="csis_articles.csv"):
+    fieldnames = [
+        "id", "title", "link", "authors", "publication_date",
+        "resource", "resource_location", "type", "content"
+    ]
+    with open(filename, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for i, row in enumerate(data, 1):
+            row["id"] = i
+            writer.writerow(row)
+
 if __name__ == "__main__":
-    links = scrape_csis()
-    print(f"Scraped {len(links)} unique links published this year:")
-    for link in links:
-        print(link)
+    # Step 1: Scrape article links and dates
+    links_data = scrape_csis()
 
+    # Step 2: Extract data from each article
+    driver = setup_driver()
+    articles_data = []
+    for link_data in links_data:
+        article_data = extract_article_data(driver, link_data)
+        articles_data.append(article_data)
+
+    driver.quit()
+
+    # Step 3: Save data to CSV
+    save_to_csv(articles_data)
+    print("Data saved to articles.csv")
