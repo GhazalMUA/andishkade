@@ -7,6 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
 import time
 import re
+
 def setup_driver():
     options = Options()
     # options.add_argument("--headless")
